@@ -2,6 +2,9 @@
 
 import { connectToDatabase } from '@/database/mongoose';
 import { Watchlist } from '@/database/models/watchlist.model';
+import { auth } from '@/lib/better-auth/auth';
+import { headers } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 
 export async function getWatchlistSymbolsByEmail(email: string): Promise<string[]> {
   if (!email) return [];
@@ -24,5 +27,70 @@ export async function getWatchlistSymbolsByEmail(email: string): Promise<string[
   } catch (err) {
     console.error('getWatchlistSymbolsByEmail error:', err);
     return [];
+  }
+}
+
+async function getCurrentUserId(): Promise<string | null> {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    return session?.user?.id ?? null;
+  } catch (err) {
+    console.error('getCurrentUserId error:', err);
+    return null;
+  }
+}
+
+export async function isSymbolInWatchlist(symbol: string): Promise<boolean> {
+  if (!symbol) return false;
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+
+    await connectToDatabase();
+    const exists = await Watchlist.exists({ userId, symbol: symbol.toUpperCase() });
+    return Boolean(exists);
+  } catch (err) {
+    console.error('isSymbolInWatchlist error:', err);
+    return false;
+  }
+}
+
+export async function addToWatchlist(symbol: string, company: string): Promise<{ success: boolean; error?: string }> {
+  if (!symbol || !company) return { success: false, error: 'Missing symbol or company' };
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return { success: false, error: 'Not authenticated' };
+
+    await connectToDatabase();
+    await Watchlist.updateOne(
+      { userId, symbol: symbol.toUpperCase() },
+      { $setOnInsert: { userId, symbol: symbol.toUpperCase(), company, addedAt: new Date() } },
+      { upsert: true }
+    );
+
+    revalidatePath('/watchlist');
+    revalidatePath(`/stocks/${symbol.toUpperCase()}`);
+    return { success: true };
+  } catch (err) {
+    console.error('addToWatchlist error:', err);
+    return { success: false, error: 'Failed to add to watchlist' };
+  }
+}
+
+export async function removeFromWatchlist(symbol: string): Promise<{ success: boolean; error?: string }> {
+  if (!symbol) return { success: false, error: 'Missing symbol' };
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return { success: false, error: 'Not authenticated' };
+
+    await connectToDatabase();
+    await Watchlist.deleteOne({ userId, symbol: symbol.toUpperCase() });
+
+    revalidatePath('/watchlist');
+    revalidatePath(`/stocks/${symbol.toUpperCase()}`);
+    return { success: true };
+  } catch (err) {
+    console.error('removeFromWatchlist error:', err);
+    return { success: false, error: 'Failed to remove from watchlist' };
   }
 }

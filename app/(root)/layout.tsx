@@ -15,12 +15,27 @@ const Layout = async ({ children }: { children : React.ReactNode }) => {
     }
 
     return (
-        <main className="min-h-screen text-gray-400">
+        <main className="min-h-screen text-gray-400 flex flex-col">
             <Header user={user} />
 
-            <div className="container py-10">
+            <div className="container py-10 flex-1">
                 {children}
             </div>
+
+            <footer className="container py-6 text-sm text-gray-500 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-2">
+                <span>© {new Date().getFullYear()} StockSense — AI Stock Tracker</span>
+                <span>
+                    Built by{' '}
+                    <a
+                        href="https://www.linkedin.com/in/rahul-reddy-avula"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-yellow-400 hover:underline"
+                    >
+                        Rahul Reddy Avula
+                    </a>
+                </span>
+            </footer>
         </main>
     )
 }
